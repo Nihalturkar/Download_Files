@@ -6,13 +6,13 @@ const axios = require("axios");
 const { v4: uuidv4 } = require("uuid");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
-// Tool paths
-const FFMPEG_DIR = String.raw`C:\Users\91750\AppData\Local\Microsoft\WinGet\Packages\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\ffmpeg-9.0.1-full_build\bin`;
-const YTDLP_PATH = String.raw`C:\Users\91750\AppData\Local\Programs\Python\Python311\Scripts\yt-dlp.exe`;
+// Tool paths — use env vars or fall back to system PATH
+const FFMPEG_DIR = process.env.FFMPEG_DIR || "";
+const YTDLP_PATH = process.env.YTDLP_PATH || "yt-dlp";
 
-process.env.PATH = FFMPEG_DIR + path.delimiter + path.dirname(YTDLP_PATH) + path.delimiter + (process.env.PATH || "");
+if (FFMPEG_DIR) process.env.PATH = FFMPEG_DIR + path.delimiter + (process.env.PATH || "");
 
 const DOWNLOADS_DIR = path.join(__dirname, "downloads");
 const HISTORY_FILE = path.join(__dirname, "history.json");
@@ -165,8 +165,10 @@ app.post("/api/open-folder/:id", (req, res) => {
   const info = activeDownloads.get(req.params.id);
   if (!info || !info.filename) return res.status(404).json({ error: "File not found" });
   const filePath = path.join(DOWNLOADS_DIR, info.filename);
-  spawn("explorer.exe", ["/select,", filePath], { detached: true, stdio: "ignore" });
-  res.json({ message: "Opened in Explorer" });
+  if (process.platform === "win32") {
+    spawn("explorer.exe", ["/select,", filePath], { detached: true, stdio: "ignore" });
+  }
+  res.json({ message: "Opened" });
 });
 
 // yt-dlp info — with playlist support
@@ -228,7 +230,8 @@ function downloadWithYtDlp(id, url, format, audioOnly, title) {
   const tempName = id;
   const outputTemplate = path.join(DOWNLOADS_DIR, tempName + ".%(ext)s");
 
-  const args = ["-o", outputTemplate, "--newline", "--ffmpeg-location", FFMPEG_DIR];
+  const args = ["-o", outputTemplate, "--newline"];
+  if (FFMPEG_DIR) args.push("--ffmpeg-location", FFMPEG_DIR);
 
   if (audioOnly) {
     args.push("-x", "--audio-format", "mp3");
@@ -323,7 +326,7 @@ function manualMerge(info, tempName, files, videoTitle) {
   const videoPath = path.join(DOWNLOADS_DIR, videoFile);
   const audioPath = path.join(DOWNLOADS_DIR, audioFile);
   const outputPath = path.join(DOWNLOADS_DIR, tempName + "_merged.mp4");
-  const ffmpegPath = path.join(FFMPEG_DIR, "ffmpeg.exe");
+  const ffmpegPath = FFMPEG_DIR ? path.join(FFMPEG_DIR, process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg") : "ffmpeg";
 
   execFile(ffmpegPath, ["-y", "-i", videoPath, "-i", audioPath, "-c", "copy", "-map", "0:v:0", "-map", "1:a:0", "-movflags", "+faststart", outputPath], { timeout: 120000 }, (err) => {
     if (err) {
@@ -437,7 +440,8 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`\n  NT Downloader running at http://localhost:${PORT}\n`);
   try {
-    const ver = require("child_process").execFileSync(path.join(FFMPEG_DIR, "ffmpeg.exe"), ["-version"]).toString().split("\n")[0];
+    const ffbin = FFMPEG_DIR ? path.join(FFMPEG_DIR, process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg") : "ffmpeg";
+    const ver = require("child_process").execFileSync(ffbin, ["-version"]).toString().split("\n")[0];
     console.log("  ffmpeg:", ver);
   } catch (e) { console.log("  ffmpeg NOT FOUND:", e.message); }
   console.log("  History:", activeDownloads.size, "items loaded");
