@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NT Downloader</title>
+  <meta name="description" content="Download videos, audio & files from any link" />
+  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="NT Downloader" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
+  <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <style>
+    :root {
+      --bg: #0a0a0f; --surface: rgba(255,255,255,0.03); --border: rgba(255,255,255,0.08);
+      --text: #e0e0e0; --text-muted: #888; --text-dim: #555;
+      --accent: #6366f1; --accent2: #a855f7; --green: #10b981; --red: #ef4444; --yellow: #facc15;
+    }
+    [data-theme="light"] {
+      --bg: #f5f5f7; --surface: rgba(0,0,0,0.03); --border: rgba(0,0,0,0.1);
+      --text: #1a1a2e; --text-muted: #666; --text-dim: #999;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; transition: background 0.3s, color 0.3s; }
+
+    .bg-animation { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; overflow: hidden; }
+    .bg-animation::before { content: ''; position: absolute; width: 600px; height: 600px; background: radial-gradient(circle, rgba(99,102,241,0.15), transparent 70%); top: -200px; right: -200px; animation: float1 15s ease-in-out infinite; }
+    .bg-animation::after { content: ''; position: absolute; width: 500px; height: 500px; background: radial-gradient(circle, rgba(168,85,247,0.1), transparent 70%); bottom: -200px; left: -200px; animation: float2 20s ease-in-out infinite; }
+    [data-theme="light"] .bg-animation::before { background: radial-gradient(circle, rgba(99,102,241,0.08), transparent 70%); }
+    [data-theme="light"] .bg-animation::after { background: radial-gradient(circle, rgba(168,85,247,0.06), transparent 70%); }
+    @keyframes float1 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-100px,100px); } }
+    @keyframes float2 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(100px,-80px); } }
+
+    .header { text-align: center; padding: 40px 20px 20px; position: relative; }
+    .header h1 { font-size: 2.2rem; font-weight: 700; background: linear-gradient(135deg, #6366f1, #a855f7, #ec4899); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
+    .header p { color: var(--text-muted); font-size: 0.95rem; }
+    .theme-toggle { position: absolute; top: 20px; right: 20px; background: var(--surface); border: 1px solid var(--border); color: var(--text); width: 40px; height: 40px; border-radius: 10px; cursor: pointer; font-size: 1.1rem; display: flex; align-items: center; justify-content: center; transition: all 0.3s; }
+    .theme-toggle:hover { border-color: var(--accent); }
+
+    .container { max-width: 800px; margin: 0 auto; padding: 20px; }
+
+    .input-section { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 24px; backdrop-filter: blur(20px); transition: border-color 0.3s; }
+    .input-section.drag-over { border-color: var(--accent); background: rgba(99,102,241,0.05); }
+    .url-input-wrapper { display: flex; gap: 10px; }
+    .url-input-wrapper input { flex: 1; padding: 14px 18px; border: 1px solid var(--border); border-radius: 12px; background: rgba(255,255,255,0.05); color: var(--text); font-size: 0.95rem; font-family: 'Inter', sans-serif; outline: none; transition: border-color 0.3s; }
+    [data-theme="light"] .url-input-wrapper input { background: rgba(0,0,0,0.03); }
+    .url-input-wrapper input:focus { border-color: var(--accent); }
+    .url-input-wrapper input::placeholder { color: var(--text-dim); }
+
+    .btn { padding: 14px 24px; border: none; border-radius: 12px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.3s; font-family: 'Inter', sans-serif; display: flex; align-items: center; gap: 8px; }
+    .btn-primary { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(99,102,241,0.3); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    .sites-bar { display: flex; gap: 16px; justify-content: center; margin-top: 16px; flex-wrap: wrap; }
+    .sites-bar span { font-size: 0.78rem; color: var(--text-dim); display: flex; align-items: center; gap: 5px; }
+
+    /* Quality presets */
+    .quality-presets { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+    .preset-btn { padding: 8px 16px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--text-muted); font-size: 0.78rem; font-weight: 600; cursor: pointer; transition: all 0.2s; font-family: 'Inter', sans-serif; }
+    .preset-btn:hover, .preset-btn.active { border-color: var(--accent); color: #818cf8; background: rgba(99,102,241,0.1); }
+
+    /* Batch textarea */
+    .batch-section { margin-top: 14px; display: none; }
+    .batch-section.visible { display: block; animation: slideUp 0.3s ease; }
+    .batch-toggle { font-size: 0.78rem; color: var(--accent); cursor: pointer; margin-top: 10px; display: inline-flex; align-items: center; gap: 5px; }
+    .batch-toggle:hover { text-decoration: underline; }
+    .batch-textarea { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,0.05); color: var(--text); font-size: 0.85rem; font-family: 'Inter', sans-serif; resize: vertical; min-height: 80px; outline: none; }
+    [data-theme="light"] .batch-textarea { background: rgba(0,0,0,0.03); }
+    .batch-textarea:focus { border-color: var(--accent); }
+    .btn-batch { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; width: 100%; justify-content: center; margin-top: 10px; padding: 12px; border: none; border-radius: 10px; font-size: 0.88rem; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; }
+
+    /* Info card */
+    .info-card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; margin-bottom: 24px; backdrop-filter: blur(20px); display: none; }
+    .info-card.visible { display: block; animation: slideUp 0.4s ease; }
+    @keyframes slideUp { from { opacity:0; transform: translateY(20px); } to { opacity:1; transform: translateY(0); } }
+
+    .media-info { display: flex; gap: 20px; align-items: flex-start; }
+    .media-info img { width: 180px; height: 110px; object-fit: cover; border-radius: 10px; flex-shrink: 0; }
+    .media-details { flex: 1; }
+    .media-details h3 { font-size: 1.05rem; font-weight: 600; margin-bottom: 6px; color: var(--text); line-height: 1.4; }
+    .media-details .meta { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 14px; }
+
+    .format-select { width: 100%; padding: 12px 14px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,0.05); color: var(--text); font-size: 0.9rem; font-family: 'Inter', sans-serif; outline: none; cursor: pointer; }
+    [data-theme="light"] .format-select { background: rgba(0,0,0,0.03); }
+    .format-select option { background: var(--bg); }
+    .btn-download { background: linear-gradient(135deg, #10b981, #059669); color: #fff; width: 100%; justify-content: center; margin-top: 16px; padding: 14px; }
+    .btn-download:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(16,185,129,0.3); }
+
+    /* Playlist card */
+    .playlist-info { margin-bottom: 14px; }
+    .playlist-info h3 { font-size: 1.05rem; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+    .playlist-info .meta { font-size: 0.8rem; color: var(--text-muted); }
+    .playlist-items { max-height: 200px; overflow-y: auto; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 14px; }
+    .playlist-items::-webkit-scrollbar { width: 6px; }
+    .playlist-items::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+    .playlist-item { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 0.82rem; display: flex; justify-content: space-between; align-items: center; }
+    .playlist-item:last-child { border-bottom: none; }
+    .playlist-item .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .playlist-item .dur { color: var(--text-muted); font-size: 0.75rem; margin-left: 10px; }
+
+    /* Downloads */
+    .downloads-section h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+    .downloads-section h2 .count { background: rgba(99,102,241,0.2); color: #818cf8; font-size: 0.75rem; padding: 2px 10px; border-radius: 20px; }
+
+    .download-item { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px; margin-bottom: 12px; animation: slideUp 0.3s ease; transition: border-color 0.3s; }
+    .download-item:hover { border-color: rgba(255,255,255,0.12); }
+    [data-theme="light"] .download-item:hover { border-color: rgba(0,0,0,0.15); }
+    .download-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .download-name { font-size: 0.88rem; font-weight: 500; color: var(--text); max-width: 500px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .download-status { font-size: 0.75rem; padding: 3px 10px; border-radius: 20px; font-weight: 500; flex-shrink: 0; }
+    .status-downloading { background: rgba(99,102,241,0.15); color: #818cf8; }
+    .status-completed { background: rgba(16,185,129,0.15); color: #34d399; }
+    .status-failed { background: rgba(239,68,68,0.15); color: #f87171; }
+    .status-starting { background: rgba(234,179,8,0.15); color: #facc15; }
+
+    .progress-bar-wrapper { width: 100%; height: 6px; background: rgba(255,255,255,0.06); border-radius: 10px; overflow: hidden; margin-bottom: 10px; }
+    [data-theme="light"] .progress-bar-wrapper { background: rgba(0,0,0,0.06); }
+    .progress-bar-fill { height: 100%; border-radius: 10px; background: linear-gradient(90deg, #6366f1, #a855f7); transition: width 0.3s ease; }
+    .progress-bar-fill.completed { background: linear-gradient(90deg, #10b981, #34d399); }
+
+    .download-meta { display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; color: var(--text-dim); }
+    .speed-graph { display: inline-block; vertical-align: middle; margin-left: 6px; }
+    .speed-graph svg { vertical-align: middle; }
+
+    .download-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .btn-sm { padding: 6px 14px; font-size: 0.78rem; border-radius: 8px; border: none; cursor: pointer; font-weight: 500; transition: all 0.2s; font-family: 'Inter', sans-serif; display: flex; align-items: center; gap: 5px; text-decoration: none; }
+    .btn-open { background: rgba(16,185,129,0.15); color: #34d399; }
+    .btn-open:hover { background: rgba(16,185,129,0.25); }
+    .btn-folder { background: rgba(99,102,241,0.12); color: #818cf8; }
+    .btn-folder:hover { background: rgba(99,102,241,0.22); }
+    .btn-remove { background: rgba(239,68,68,0.1); color: #f87171; }
+    .btn-remove:hover { background: rgba(239,68,68,0.2); }
+
+    .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.1); border-top-color: #6366f1; border-radius: 50%; animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .empty-state { text-align: center; padding: 50px 20px; color: #444; }
+    .empty-state i { font-size: 3rem; margin-bottom: 16px; opacity: 0.3; }
+    .empty-state p { font-size: 0.9rem; }
+
+    .toast { position: fixed; bottom: 30px; right: 30px; padding: 14px 22px; border-radius: 12px; font-size: 0.85rem; font-weight: 500; z-index: 9999; animation: toastIn 0.4s ease; max-width: 400px; }
+    .toast-success { background: #065f46; color: #34d399; border: 1px solid rgba(52,211,153,0.2); }
+    .toast-error { background: #450a0a; color: #f87171; border: 1px solid rgba(248,113,113,0.2); }
+    .toast-info { background: #1e1b4b; color: #818cf8; border: 1px solid rgba(129,140,248,0.2); }
+    @keyframes toastIn { from { opacity:0; transform: translateY(20px); } to { opacity:1; transform: translateY(0); } }
+
+    .filesize { font-size: 0.72rem; color: var(--text-dim); margin-left: 8px; }
+
+    /* ── Tabs ── */
+    .tabs { display: flex; gap: 0; margin-bottom: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .tab-btn { flex: 1; padding: 12px; text-align: center; font-size: 0.88rem; font-weight: 600; cursor: pointer; border: none; background: transparent; color: var(--text-muted); font-family: 'Inter', sans-serif; transition: all 0.3s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+    .tab-btn.active { background: rgba(99,102,241,0.12); color: #818cf8; }
+    .tab-btn:hover:not(.active) { background: rgba(255,255,255,0.02); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; animation: slideUp 0.3s ease; }
+
+    /* ── QR Generator ── */
+    .qr-section { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; backdrop-filter: blur(20px); }
+    .qr-input { width: 100%; padding: 12px 16px; border: 1px solid var(--border); border-radius: 10px; background: rgba(255,255,255,0.05); color: var(--text); font-size: 0.9rem; font-family: 'Inter', sans-serif; outline: none; margin-bottom: 14px; }
+    [data-theme="light"] .qr-input { background: rgba(0,0,0,0.03); }
+    .qr-input:focus { border-color: var(--accent); }
+
+    .logo-upload { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+    .logo-upload-area { width: 70px; height: 70px; border: 2px dashed var(--border); border-radius: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden; transition: border-color 0.3s; flex-shrink: 0; background: var(--surface); }
+    .logo-upload-area:hover { border-color: var(--accent); }
+    .logo-upload-area img { width: 100%; height: 100%; object-fit: cover; }
+    .logo-upload-area i { font-size: 1.5rem; color: var(--text-dim); }
+    .logo-upload-text { font-size: 0.82rem; color: var(--text-muted); line-height: 1.5; }
+    .logo-upload-text strong { color: var(--text); }
+
+    .qr-options { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+    .qr-color-pick { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--text-muted); }
+    .qr-color-pick input[type="color"] { width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; background: none; padding: 2px; }
+    .qr-size-pick { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; color: var(--text-muted); }
+    .qr-size-pick select { padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-family: 'Inter', sans-serif; font-size: 0.82rem; }
+
+    .btn-generate { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; width: 100%; justify-content: center; padding: 12px; border: none; border-radius: 10px; font-size: 0.9rem; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; display: flex; align-items: center; gap: 8px; transition: all 0.3s; }
+    .btn-generate:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(99,102,241,0.3); }
+
+    .qr-result { text-align: center; margin-top: 20px; display: none; }
+    .qr-result.visible { display: block; animation: slideUp 0.4s ease; }
+    .qr-result canvas { border-radius: 12px; max-width: 100%; }
+    .qr-download-btns { display: flex; gap: 10px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+    .qr-download-btns .btn-sm { padding: 8px 18px; }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      .header { padding: 24px 10px 14px; }
+      .header h1 { font-size: 1.5rem; }
+      .header p { font-size: 0.82rem; }
+      .theme-toggle { top: 12px; right: 12px; width: 36px; height: 36px; font-size: 0.95rem; }
+      .container { padding: 10px; }
+      .input-section { padding: 16px; border-radius: 12px; margin-bottom: 16px; }
+      .url-input-wrapper { flex-direction: column; }
+      .url-input-wrapper input { padding: 12px 14px; font-size: 0.88rem; }
+      .btn-primary { width: 100%; justify-content: center; padding: 12px; }
+      .quality-presets { justify-content: center; }
+      .sites-bar { gap: 10px; margin-top: 12px; }
+      .sites-bar span { font-size: 0.7rem; }
+      .info-card { padding: 16px; border-radius: 12px; margin-bottom: 16px; }
+      .media-info { flex-direction: column; gap: 12px; }
+      .media-info img { width: 100%; height: 170px; border-radius: 8px; }
+      .media-details h3 { font-size: 0.95rem; }
+      .format-select { padding: 10px 12px; font-size: 0.85rem; }
+      .btn-download { padding: 12px; font-size: 0.88rem; margin-top: 12px; }
+      .downloads-section h2 { font-size: 1rem; }
+      .download-item { padding: 14px; border-radius: 10px; margin-bottom: 10px; }
+      .download-name { font-size: 0.8rem; max-width: 180px; }
+      .download-status { font-size: 0.68rem; padding: 2px 8px; }
+      .download-meta { font-size: 0.72rem; flex-wrap: wrap; gap: 4px; }
+      .download-actions { flex-wrap: wrap; }
+      .btn-sm { padding: 8px 12px; font-size: 0.75rem; }
+      .toast { left: 16px; right: 16px; bottom: 20px; font-size: 0.8rem; padding: 12px 16px; }
+      .empty-state { padding: 30px 16px; }
+      .empty-state i { font-size: 2.2rem; }
+      .empty-state p { font-size: 0.82rem; }
+      .tabs { border-radius: 10px; }
+      .tab-btn { font-size: 0.8rem; padding: 10px; }
+      .qr-section { padding: 16px; border-radius: 12px; }
+      .qr-options { gap: 8px; }
+      .logo-upload-area { width: 60px; height: 60px; }
+      .qr-result canvas { max-width: 100%; height: auto !important; }
+      .qr-download-btns { gap: 6px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-animation"></div>
+
+  <div class="header">
+    <h1><i class="fas fa-bolt"></i> NT Downloader</h1>
+    <p>Download videos, audio & files from any link</p>
+    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme"><i class="fas fa-moon" id="themeIcon"></i></button>
+  </div>
+
+  <div class="container">
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('downloader')"><i class="fas fa-download"></i> Downloader</button>
+      <button class="tab-btn" onclick="switchTab('qr')"><i class="fas fa-qrcode"></i> QR Generator</button>
+    </div>
+
+    <!-- Downloader Tab -->
+    <div class="tab-content active" id="tab-downloader">
+    <div class="input-section" id="inputSection">
+      <div class="url-input-wrapper">
+        <input type="text" id="urlInput" placeholder="Paste any URL here — YouTube, Instagram, direct links..." autofocus />
+        <button class="btn btn-primary" id="fetchBtn" onclick="fetchInfo()">
+          <i class="fas fa-search"></i> Fetch
+        </button>
+      </div>
+
+      <div class="quality-presets">
+        <button class="preset-btn active" data-preset="best" onclick="setPreset(this)">Best</button>
+        <button class="preset-btn" data-preset="1080p" onclick="setPreset(this)">1080p</button>
+        <button class="preset-btn" data-preset="720p" onclick="setPreset(this)">720p</button>
+        <button class="preset-btn" data-preset="4k" onclick="setPreset(this)">4K</button>
+        <button class="preset-btn" data-preset="audio" onclick="setPreset(this)"><i class="fas fa-music"></i> Audio</button>
+      </div>
+
+      <div class="sites-bar">
+        <span><i class="fab fa-youtube" style="color:#f00"></i> YouTube</span>
+        <span><i class="fab fa-instagram" style="color:#e4405f"></i> Instagram</span>
+        <span><i class="fab fa-facebook" style="color:#1877f2"></i> Facebook</span>
+        <span><i class="fab fa-twitter" style="color:#1da1f2"></i> Twitter</span>
+        <span><i class="fas fa-globe" style="color:#a855f7"></i> 1000+ Sites</span>
+        <span><i class="fas fa-link" style="color:#10b981"></i> Direct Links</span>
+      </div>
+
+      <span class="batch-toggle" onclick="toggleBatch()"><i class="fas fa-layer-group"></i> Batch Download (multiple URLs)</span>
+      <div class="batch-section" id="batchSection">
+        <textarea class="batch-textarea" id="batchInput" placeholder="Paste one URL per line..."></textarea>
+        <button class="btn-batch" onclick="startBatch()"><i class="fas fa-download"></i> Download All</button>
+      </div>
+    </div>
+
+    <div class="info-card" id="infoCard">
+      <div class="media-info" id="mediaInfo"></div>
+      <div id="formatSection"></div>
+    </div>
+
+    <div class="downloads-section">
+      <h2><i class="fas fa-download"></i> Downloads <span class="count" id="downloadCount">0</span></h2>
+      <div id="downloadsList">
+        <div class="empty-state">
+          <i class="fas fa-cloud-download-alt"></i>
+          <p>No downloads yet. Paste a URL above to get started!</p>
+        </div>
+      </div>
+    </div>
+    </div><!-- /tab-downloader -->
+
+    <!-- QR Generator Tab -->
+    <div class="tab-content" id="tab-qr">
+      <div class="qr-section">
+        <h2 style="font-size:1.1rem;font-weight:600;margin-bottom:16px;"><i class="fas fa-qrcode"></i> QR Code Generator</h2>
+
+        <input type="text" class="qr-input" id="qrLink" placeholder="Enter URL or text to encode..." />
+
+        <div class="logo-upload">
+          <div class="logo-upload-area" id="logoArea" onclick="document.getElementById('logoFile').click()">
+            <i class="fas fa-image" id="logoPlaceholder"></i>
+            <img id="logoPreview" style="display:none" />
+          </div>
+          <input type="file" id="logoFile" accept="image/*" style="display:none" onchange="previewLogo(this)" />
+          <div class="logo-upload-text">
+            <strong>Upload Image</strong><br>
+            Upload your image/logo. The QR code<br>will be generated over it as an overlay.
+          </div>
+        </div>
+
+        <div class="qr-options">
+          <div class="qr-color-pick">
+            <label>QR Dot Color</label>
+            <input type="color" id="qrColor" value="#000000" />
+          </div>
+          <div class="qr-size-pick">
+            <label>Size</label>
+            <select id="qrSize">
+              <option value="256">256px</option>
+              <option value="512" selected>512px</option>
+              <option value="1024">1024px</option>
+            </select>
+          </div>
+          <div class="qr-color-pick">
+            <label>Image Blend</label>
+            <input type="range" id="qrOpacity" min="0.2" max="1" step="0.05" value="0.65" style="width:80px;vertical-align:middle;" />
+          </div>
+        </div>
+
+        <button class="btn-generate" onclick="generateQR()">
+          <i class="fas fa-magic"></i> Generate QR Code
+        </button>
+
+        <div class="qr-result" id="qrResult">
+          <canvas id="qrCanvas"></canvas>
+          <div class="qr-download-btns">
+            <button class="btn-sm btn-open" onclick="downloadQR('png')"><i class="fas fa-file-image"></i> Download PNG</button>
+            <button class="btn-sm btn-folder" onclick="downloadQR('jpg')"><i class="fas fa-file-image"></i> Download JPG</button>
+            <button class="btn-sm btn-open" onclick="downloadQR('svg')"><i class="fas fa-code"></i> Download SVG</button>
+          </div>
+        </div>
+      </div>
+    </div><!-- /tab-qr -->
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <script>
+    const urlInput = document.getElementById("urlInput");
+    const fetchBtn = document.getElementById("fetchBtn");
+    const infoCard = document.getElementById("infoCard");
+    const mediaInfo = document.getElementById("mediaInfo");
+    const formatSection = document.getElementById("formatSection");
+    const downloadsList = document.getElementById("downloadsList");
+    const downloadCount = document.getElementById("downloadCount");
+    const inputSection = document.getElementById("inputSection");
+
+    let currentInfo = null;
+    let trackingIntervals = {};
+    let selectedPreset = "best";
+
+    // ── 1. Paste & Go ──
+    urlInput.addEventListener("paste", () => {
+      setTimeout(() => {
+        const val = urlInput.value.trim();
+        if (val && (val.startsWith("http://") || val.startsWith("https://"))) {
+          fetchInfo();
+        }
+      }, 50);
+    });
+
+    urlInput.addEventListener("keydown", (e) => { if (e.key === "Enter") fetchInfo(); });
+
+    // ── 5. Drag & Drop ──
+    inputSection.addEventListener("dragover", (e) => { e.preventDefault(); inputSection.classList.add("drag-over"); });
+    inputSection.addEventListener("dragleave", () => { inputSection.classList.remove("drag-over"); });
+    inputSection.addEventListener("drop", (e) => {
+      e.preventDefault();
+      inputSection.classList.remove("drag-over");
+      const text = e.dataTransfer.getData("text/plain") || e.dataTransfer.getData("text/uri-list");
+      if (text && (text.startsWith("http://") || text.startsWith("https://"))) {
+        urlInput.value = text;
+        fetchInfo();
+      }
+    });
+
+    // ── 4. Theme toggle ──
+    function toggleTheme() {
+      const isLight = document.body.getAttribute("data-theme") === "light";
+      document.body.setAttribute("data-theme", isLight ? "" : "light");
+      document.getElementById("themeIcon").className = isLight ? "fas fa-moon" : "fas fa-sun";
+      try { localStorage.setItem("theme", isLight ? "dark" : "light"); } catch {}
+    }
+    try {
+      if (localStorage.getItem("theme") === "light") {
+        document.body.setAttribute("data-theme", "light");
+        document.getElementById("themeIcon").className = "fas fa-sun";
+      }
+    } catch {}
+
+    // ── 9. Quality presets ──
+    function setPreset(btn) {
+      document.querySelectorAll(".preset-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      selectedPreset = btn.dataset.preset;
+    }
+
+    // ── 3. Batch download ──
+    function toggleBatch() {
+      document.getElementById("batchSection").classList.toggle("visible");
+    }
+    async function startBatch() {
+      const text = document.getElementById("batchInput").value.trim();
+      if (!text) return showToast("Paste URLs first", "error");
+      const urls = text.split("\n").map(l => l.trim()).filter(l => l.startsWith("http"));
+      if (urls.length === 0) return showToast("No valid URLs found", "error");
+
+      try {
+        const res = await fetch("/api/batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ urls, preset: selectedPreset }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        showToast(`${data.ids.length} downloads started!`, "success");
+        data.ids.forEach(id => trackDownload(id));
+        document.getElementById("batchInput").value = "";
+        document.getElementById("batchSection").classList.remove("visible");
+      } catch (err) { showToast(err.message, "error"); }
+    }
+
+    // ── Fetch URL Info ──
+    async function fetchInfo() {
+      const url = urlInput.value.trim();
+      if (!url) return showToast("Please enter a URL", "error");
+
+      fetchBtn.disabled = true;
+      fetchBtn.innerHTML = '<span class="spinner"></span> Fetching...';
+      infoCard.classList.remove("visible");
+
+      try {
+        const res = await fetch(`/api/info?url=${encodeURIComponent(url)}`);
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        currentInfo = data;
+        renderInfoCard(data);
+      } catch (err) { showToast(err.message, "error"); }
+      finally {
+        fetchBtn.disabled = false;
+        fetchBtn.innerHTML = '<i class="fas fa-search"></i> Fetch';
+      }
+    }
+
+    // ── Render Info Card ──
+    function renderInfoCard(data) {
+      if (data.type === "playlist") {
+        // ── 8. Playlist support ──
+        mediaInfo.innerHTML = `
+          <div class="playlist-info">
+            <h3><i class="fas fa-list"></i> ${escapeHtml(data.title)}</h3>
+            <div class="meta">${data.count} videos in playlist</div>
+          </div>
+        `;
+        let playlistHtml = '<div class="playlist-items">';
+        for (const e of data.entries.slice(0, 50)) {
+          playlistHtml += `<div class="playlist-item"><span class="title">${escapeHtml(e.title)}</span>${e.duration ? `<span class="dur">${formatDuration(e.duration)}</span>` : ''}</div>`;
+        }
+        playlistHtml += '</div>';
+
+        formatSection.innerHTML = playlistHtml + `
+          <button class="btn btn-download" onclick="downloadPlaylist()">
+            <i class="fas fa-download"></i> Download All ${data.count} Videos
+          </button>
+        `;
+      } else if (data.type === "media") {
+        mediaInfo.innerHTML = `
+          ${data.thumbnail ? `<img src="${data.thumbnail}" alt="thumbnail" />` : ""}
+          <div class="media-details">
+            <h3>${escapeHtml(data.title)}</h3>
+            <div class="meta">
+              ${data.uploader ? `<i class="fas fa-user"></i> ${escapeHtml(data.uploader)}` : ""}
+              ${data.duration ? ` &nbsp;|&nbsp; <i class="fas fa-clock"></i> ${formatDuration(data.duration)}` : ""}
+              ${data.filesize ? ` &nbsp;|&nbsp; <i class="fas fa-hdd"></i> ${formatBytes(data.filesize)}` : ""}
+            </div>
+          </div>
+        `;
+        if (data.formats && data.formats.length > 1) {
+          formatSection.innerHTML = `
+            <select class="format-select" id="formatSelect">
+              ${data.formats.map(f => `<option value="${f.id}" ${f.audioOnly ? 'data-audio="true"' : ''}>${f.label}</option>`).join("")}
+            </select>
+          `;
+        } else { formatSection.innerHTML = ""; }
+        formatSection.innerHTML += `<button class="btn btn-download" onclick="startDownload()"><i class="fas fa-download"></i> Download Now</button>`;
+      } else {
+        mediaInfo.innerHTML = `
+          <div class="media-details">
+            <h3><i class="fas fa-file"></i> ${escapeHtml(data.title)}</h3>
+            <div class="meta">${data.contentType ? `Type: ${data.contentType}` : ""} ${data.filesize ? ` | Size: ${formatBytes(data.filesize)}` : ""}</div>
+          </div>
+        `;
+        formatSection.innerHTML = `<button class="btn btn-download" onclick="startDownload()"><i class="fas fa-download"></i> Download Now</button>`;
+      }
+      infoCard.classList.add("visible");
+    }
+
+    // ── Download playlist ──
+    async function downloadPlaylist() {
+      if (!currentInfo || currentInfo.type !== "playlist") return;
+      const urls = currentInfo.entries.map(e => ({ url: e.url, title: e.title }));
+      try {
+        const res = await fetch("/api/batch", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ urls, preset: selectedPreset }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        showToast(`${data.ids.length} playlist downloads started!`, "success");
+        data.ids.forEach(id => trackDownload(id));
+        infoCard.classList.remove("visible");
+        urlInput.value = "";
+        currentInfo = null;
+      } catch (err) { showToast(err.message, "error"); }
+    }
+
+    // ── Start Download ──
+    async function startDownload() {
+      if (!currentInfo) return;
+      const formatSelect = document.getElementById("formatSelect");
+      const format = formatSelect ? formatSelect.value : (currentInfo.type === "direct" ? "direct" : null);
+      const audioOnly = formatSelect ? formatSelect.selectedOptions[0]?.dataset.audio === "true" : false;
+
+      try {
+        const res = await fetch("/api/download", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: currentInfo.url, format, audioOnly, title: currentInfo.title, preset: selectedPreset }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        showToast("Download started!", "success");
+        trackDownload(data.id);
+        infoCard.classList.remove("visible");
+        urlInput.value = "";
+        currentInfo = null;
+      } catch (err) { showToast(err.message, "error"); }
+    }
+
+    // ── Track download ──
+    function trackDownload(id) {
+      updateDownloads();
+      trackingIntervals[id] = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/progress/${id}`);
+          const data = await res.json();
+          updateDownloads();
+          if (data.status === "completed" || data.status === "failed") {
+            clearInterval(trackingIntervals[id]);
+            delete trackingIntervals[id];
+            if (data.status === "completed") showToast(`Done: ${data.filename}`, "success");
+          }
+        } catch { clearInterval(trackingIntervals[id]); delete trackingIntervals[id]; }
+      }, 800);
+    }
+
+    // ── 10. Speed sparkline ──
+    function renderSparkline(history) {
+      if (!history || history.length < 2) return "";
+      const max = Math.max(...history);
+      if (max === 0) return "";
+      const w = 60, h = 16;
+      const points = history.map((v, i) => `${(i / (history.length - 1)) * w},${h - (v / max) * h}`).join(" ");
+      return `<span class="speed-graph"><svg width="${w}" height="${h}"><polyline points="${points}" fill="none" stroke="#818cf8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span>`;
+    }
+
+    // ── Update downloads list (in-place) ──
+    let knownIds = new Set();
+    async function updateDownloads() {
+      try {
+        const res = await fetch("/api/downloads");
+        const downloads = await res.json();
+        downloadCount.textContent = downloads.length;
+
+        if (downloads.length === 0) {
+          knownIds.clear();
+          downloadsList.innerHTML = `<div class="empty-state"><i class="fas fa-cloud-download-alt"></i><p>No downloads yet. Paste a URL above to get started!</p></div>`;
+          return;
+        }
+
+        const currentIds = new Set(downloads.map(d => d.id));
+        downloadsList.querySelectorAll("[data-id]").forEach(el => { if (!currentIds.has(el.dataset.id)) el.remove(); });
+
+        for (const d of downloads) {
+          let el = downloadsList.querySelector(`[data-id="${d.id}"]`);
+          if (!el) {
+            el = document.createElement("div");
+            el.className = "download-item";
+            el.dataset.id = d.id;
+            el.innerHTML = renderDownloadInner(d);
+            const empty = downloadsList.querySelector(".empty-state");
+            if (empty) empty.remove();
+            downloadsList.prepend(el);
+          } else {
+            const bar = el.querySelector(".progress-bar-fill");
+            bar.style.width = d.progress + "%";
+            bar.className = "progress-bar-fill" + (d.status === "completed" ? " completed" : "");
+
+            const meta = el.querySelector(".download-meta");
+            meta.children[0].textContent = d.progress.toFixed(1) + "%";
+            meta.children[1].innerHTML = (d.speed || "") + renderSparkline(d.speedHistory);
+            meta.children[2].textContent = d.eta ? "ETA: " + d.eta : "";
+            if (d.filesize) { const fs = meta.children[3]; if (fs) fs.textContent = formatBytes(d.filesize); }
+
+            const name = el.querySelector(".download-name");
+            const label = d.title || d.filename || d.url;
+            if (name.textContent.trim() !== label) { name.textContent = label; name.title = label; }
+
+            const badge = el.querySelector(".download-status");
+            if (badge.textContent !== d.status) {
+              badge.textContent = d.status;
+              badge.className = "download-status status-" + d.status;
+              el.querySelector(".download-actions").innerHTML = renderActions(d);
+            }
+          }
+        }
+        knownIds = currentIds;
+      } catch {}
+    }
+
+    function renderDownloadInner(d) {
+      return `
+        <div class="download-header">
+          <div class="download-name" title="${escapeHtml(d.title || d.filename || d.url)}">${escapeHtml(d.title || d.filename || d.url)}</div>
+          <span class="download-status status-${d.status}">${d.status}</span>
+        </div>
+        <div class="progress-bar-wrapper">
+          <div class="progress-bar-fill ${d.status === 'completed' ? 'completed' : ''}" style="width: ${d.progress}%"></div>
+        </div>
+        <div class="download-meta">
+          <span>${d.progress.toFixed(1)}%</span>
+          <span>${(d.speed || '') + renderSparkline(d.speedHistory)}</span>
+          <span>${d.eta ? 'ETA: ' + d.eta : ''}</span>
+          <span class="filesize">${d.filesize ? formatBytes(d.filesize) : ''}</span>
+        </div>
+        <div class="download-actions">${renderActions(d)}</div>
+        ${d.error && d.status === 'failed' ? `<div style="margin-top:8px;font-size:0.75rem;color:#f87171;"><i class="fas fa-exclamation-circle"></i> ${escapeHtml(d.error)}</div>` : ''}
+      `;
+    }
+
+    function renderActions(d) {
+      let html = '';
+      if (d.status === 'completed' && d.filename) {
+        html += `<a href="/downloads/${encodeURIComponent(d.filename)}" download class="btn-sm btn-open"><i class="fas fa-file-download"></i> Save</a>`;
+        html += `<button class="btn-sm btn-folder" onclick="openFolder('${d.id}')"><i class="fas fa-folder-open"></i> Open Folder</button>`;
+      }
+      html += `<button class="btn-sm btn-remove" onclick="removeDownload('${d.id}')"><i class="fas fa-trash"></i> ${d.status === 'downloading' ? 'Cancel' : 'Remove'}</button>`;
+      return html;
+    }
+
+    // ── 7. Open in folder ──
+    async function openFolder(id) {
+      try { await fetch(`/api/open-folder/${id}`, { method: "POST" }); }
+      catch { showToast("Could not open folder", "error"); }
+    }
+
+    async function removeDownload(id) {
+      try {
+        await fetch(`/api/downloads/${id}`, { method: "DELETE" });
+        if (trackingIntervals[id]) { clearInterval(trackingIntervals[id]); delete trackingIntervals[id]; }
+        updateDownloads();
+      } catch {}
+    }
+
+    // ── Utilities ──
+    function formatBytes(bytes) {
+      if (!bytes) return "";
+      const s = ["B", "KB", "MB", "GB", "TB"];
+      const i = Math.floor(Math.log(bytes) / Math.log(1024));
+      return (bytes / Math.pow(1024, i)).toFixed(1) + " " + s[i];
+    }
+    function formatDuration(sec) {
+      const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = Math.floor(sec % 60);
+      return h > 0 ? `${h}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}` : `${m}:${s.toString().padStart(2,'0')}`;
+    }
+    function escapeHtml(str) {
+      if (!str) return "";
+      const d = document.createElement("div"); d.textContent = str; return d.innerHTML;
+    }
+    function showToast(msg, type = "success") {
+      const t = document.createElement("div");
+      t.className = `toast toast-${type}`;
+      const icon = type === 'success' ? 'check-circle' : type === 'info' ? 'info-circle' : 'exclamation-circle';
+      t.innerHTML = `<i class="fas fa-${icon}"></i> ${msg}`;
+      document.body.appendChild(t);
+      setTimeout(() => t.remove(), 4000);
+    }
+
+    updateDownloads();
+
+    // ── Tab switching ──
+    function switchTab(tab) {
+      document.querySelectorAll(".tab-btn").forEach((b, i) => b.classList.toggle("active", i === (tab === "downloader" ? 0 : 1)));
+      document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
+      document.getElementById("tab-" + tab).classList.add("active");
+    }
+
+    // ── QR Code Generator ──
+    let logoDataUrl = null;
+
+    function previewLogo(input) {
+      if (!input.files || !input.files[0]) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        logoDataUrl = e.target.result;
+        const preview = document.getElementById("logoPreview");
+        preview.src = logoDataUrl;
+        preview.style.display = "block";
+        document.getElementById("logoPlaceholder").style.display = "none";
+      };
+      reader.readAsDataURL(input.files[0]);
+    }
+
+    async function generateQR() {
+      const text = document.getElementById("qrLink").value.trim();
+      if (!text) return showToast("Enter a URL or text first", "error");
+      if (!logoDataUrl) return showToast("Upload an image first", "error");
+
+      const size = parseInt(document.getElementById("qrSize").value);
+      const color = document.getElementById("qrColor").value;
+      const canvas = document.getElementById("qrCanvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      const blend = parseFloat(document.getElementById("qrOpacity")?.value || 0.65);
+
+      try {
+        const qrData = await QRCode.create(text, { errorCorrectionLevel: "H" });
+        const modules = qrData.modules;
+        const moduleCount = modules.size;
+        const margin = 2;
+        const totalCells = moduleCount + margin * 2;
+        const cellSize = size / totalCells;
+        const qrAreaStart = margin * cellSize;
+        const qrAreaSize = moduleCount * cellSize;
+
+        const img = new Image();
+        await new Promise((resolve, reject) => {
+          img.onload = resolve;
+          img.onerror = reject;
+          img.src = logoDataUrl;
+        });
+
+        // Draw image onto offscreen canvas, cropped to square
+        const offscreen = document.createElement("canvas");
+        offscreen.width = size;
+        offscreen.height = size;
+        const offCtx = offscreen.getContext("2d");
+        const imgRatio = img.width / img.height;
+        let sx = 0, sy = 0, sw = img.width, sh = img.height;
+        if (imgRatio > 1) { sw = img.height; sx = (img.width - sw) / 2; }
+        else { sh = img.width; sy = (img.height - sh) / 2; }
+        offCtx.drawImage(img, sx, sy, sw, sh, 0, 0, size, size);
+
+        // Step 1: Fill entire canvas white (QR quiet zone)
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, size, size);
+
+        // Step 2: Draw each QR module as a solid scannable block, then blend image into it
+        for (let row = 0; row < moduleCount; row++) {
+          for (let col = 0; col < moduleCount; col++) {
+            const isDark = modules.get(row, col);
+            const x = (col + margin) * cellSize;
+            const y = (row + margin) * cellSize;
+
+            // Solid QR color first (scannable base)
+            ctx.globalAlpha = 1;
+            ctx.fillStyle = isDark ? color : "#ffffff";
+            ctx.fillRect(x, y, cellSize, cellSize);
+
+            // Blend image on top with controlled opacity so QR stays scannable
+            // Dark modules: low image blend to keep them dark
+            // Light modules: low image blend to keep them light
+            ctx.globalAlpha = isDark ? blend * 0.45 : blend * 0.35;
+            ctx.drawImage(offscreen, x, y, cellSize, cellSize, x, y, cellSize, cellSize);
+          }
+        }
+        ctx.globalAlpha = 1;
+
+        document.getElementById("qrResult").classList.add("visible");
+        showToast("QR generated with image blend!", "success");
+      } catch (err) {
+        showToast("Failed to generate QR: " + err.message, "error");
+      }
+    }
+
+    function downloadQR(format) {
+      const canvas = document.getElementById("qrCanvas");
+      const link = document.createElement("a");
+      if (format === "svg") {
+        // Re-generate as SVG string
+        const text = document.getElementById("qrLink").value.trim();
+        const color = document.getElementById("qrColor").value;
+        const bg = document.getElementById("qrBg").value;
+        QRCode.toString(text, { type: "svg", color: { dark: color, light: bg }, errorCorrectionLevel: "H" }, (err, svg) => {
+          if (err) return;
+          const blob = new Blob([svg], { type: "image/svg+xml" });
+          link.href = URL.createObjectURL(blob);
+          link.download = "qr-code.svg";
+          link.click();
+        });
+      } else {
+        const mime = format === "jpg" ? "image/jpeg" : "image/png";
+        link.href = canvas.toDataURL(mime, 0.95);
+        link.download = "qr-code." + format;
+        link.click();
+      }
+    }
+
+    // PWA service worker
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+  </script>
+</body>
+</html>
